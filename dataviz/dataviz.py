@@ -1,6 +1,8 @@
 import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
+import matplotlib.ticker as mtick
+from upsetplot import from_indicators, plot
 
 class DataViz:
     def __init__(self, dataframe):
@@ -167,10 +169,66 @@ class DataViz:
         ax1.grid(False)
         ax1.set_title(feature, fontsize=20)
         ax1.set_ylabel("Observations", fontsize=14)
-        ax2.set_ylabel("Target Rate (%)", fontsize=14)
+        ax2.set_ylabel("Default Rate (%)", fontsize=14)
         ax2.set_ylim(bottom=0)
 
         ax1.set_xticks(np.arange(len(df_agg.index)))
         labels = list(df_agg.index)
         ax1.axes.set_xticklabels(labels, rotation=45)
+        plt.show()
+
+    def feat_importance(self, target):
+        """
+        Feature importance plot using RandomForestClassifier.
+        """
+        if isinstance(self.dataframe, pd.DataFrame):
+            X = self.dataframe.drop([target], axis=1).fillna(0)
+            y = self.dataframe[target]
+            forest = RandomForestClassifier(n_estimators=5, max_depth=6, min_samples_leaf=6,
+                                            min_samples_split=10, random_state=42)
+            forest.fit(X, y)
+            # Visualize feature importance
+            plt.figure(figsize=(10, 8))
+            importances = pd.Series(forest.feature_importances_, index=X.columns)
+            importances.nlargest(10).sort_values().plot(kind='barh')
+            plt.title('RF Feature Importance Plot', fontsize=16)
+            plt.xlabel('Importance')
+            plt.show()
+        else:
+            print('A pd.DataFrame object is required.')
+
+    def plot_roc_cm(self, y_true, y_pred, name):
+        """
+        Plot ROC curve and Confusion Matrix.
+        """
+        # Compute fpr and tpr for ROC curve
+        fpr, tpr, thresholds = roc_curve(y_true, y_pred)
+        roc_auc = auc(fpr, tpr)
+
+        # Compute the confusion matrix
+        y_pred_binary = np.where(y_pred > 0.5, 1, 0)
+        mat = confusion_matrix(y_true, y_pred_binary)
+        cr = classification_report(y_true, y_pred_binary)
+        print(cr)
+
+        # Plot the ROC curve
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6))
+        ax1.plot(fpr, tpr, label='ROC curve (area = {:.2f})'.format(roc_auc))
+        ax1.plot([0, 1], [0, 1], 'k--')
+        ax1.set_xlabel('False Positive Rate')
+        ax1.set_ylabel('True Positive Rate')
+        ax1.set_title('ROC Curve of {}'.format(name))
+        ax1.legend(loc='lower right')
+
+        # Plot the confusion matrix
+        names = ["True Negative", "False Positive", "False Negative", "True Positive"]
+        counts = ["{0:0.0f}".format(value) for value in mat.flatten()]
+        percents = ["{0:.2%}".format(value) for value in mat.flatten()/np.sum(mat)]
+        labels = ["{}\n{}\n{}".format(a, b, c) for a, b, c in zip(names, counts, percents)]
+        labels = np.asarray(labels).reshape(2, 2)
+        sns.heatmap(mat, annot=labels, fmt="", cmap="Blues", ax=ax2)
+        ax2.set(xlabel="Predicted", ylabel="Actual",
+                title='Confusion Matrix of {}'.format(name))
+
+        plt.tight_layout()
         plt.show()
